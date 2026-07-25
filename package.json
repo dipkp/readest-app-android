@@ -1,0 +1,28 @@
+{
+  "name": "@readest/monorepo",
+  "private": true,
+  "repository": "readest/readest",
+  "scripts": {
+    "test": "pnpm --filter @dod/dod-app test",
+    "test:lua": "pnpm --filter @dod/dod-app test:lua",
+    "lint": "pnpm --filter @dod/dod-app lint",
+    "lint:lua": "pnpm --filter @dod/dod-app lint:lua",
+    "tauri": "pnpm --filter @dod/dod-app tauri",
+    "dev-web": "pnpm --filter @dod/dod-app dev-web",
+    "prepare": "husky",
+    "fmt:check": "pnpm --filter @dod/dod-app fmt:check",
+    "clippy:check": "pnpm --filter @dod/dod-app clippy:check",
+    "worktree:new": "pnpm --filter @dod/dod-app worktree:new",
+    "worktree:rm": "pnpm --filter @dod/dod-app worktree:rm",
+    "format": "biome format --write .",
+    "format:check": "biome format ."
+  },
+  "packageManager": "pnpm@11.1.1",
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.9",
+    "@sindresorhus/tsconfig": "^6.0.0",
+    "husky": "^9.1.6",
+    "lint-staged": "^16.2.7",
+    "typescript": "5.6.3"
+  }
+}
