@@ -16,8 +16,8 @@ export interface User {
   email: string | null;
   full_name: string | null;
   avatar_url: string | null;
-  user_metadata?: Record<string, any>;
-  [key: string]: any;
+  user_metadata?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 interface AuthContextType {
