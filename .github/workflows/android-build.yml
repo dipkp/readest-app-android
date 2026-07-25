@@ -49,10 +49,6 @@ jobs:
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
 
-      - name: Init Tauri Android
-        working-directory: apps/readest-app
-        run: pnpm tauri android init
-
       - name: Build Tauri Android APK
         working-directory: apps/readest-app
         run: pnpm tauri android build
