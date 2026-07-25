@@ -54,6 +54,7 @@ jobs:
         run: |
           rm -rf src-tauri/gen
           pnpm tauri android init
+          sed -i 's/defaultConfig {/defaultConfig {\n        missingDimensionStrategy("store", "foss")/' src-tauri/gen/android/app/build.gradle.kts
 
       - name: Build Tauri Android APK
         working-directory: apps/readest-app
