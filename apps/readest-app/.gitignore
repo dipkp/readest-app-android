@@ -57,6 +57,7 @@ next-env.d.ts
 .eslintcache
 
 #generated
+src-tauri/gen
 
 # local dev overrides (personal signing, etc.)
 src-tauri/tauri.*.local.json
