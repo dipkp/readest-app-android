@@ -16,6 +16,7 @@ export interface User {
   email: string | null;
   full_name: string | null;
   avatar_url: string | null;
+  user_metadata?: Record<string, any>;
   [key: string]: any;
 }
 
@@ -42,7 +43,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         localStorage.removeItem('readest_google_user');
         setUser(null);
       }
-    } catch (e) {}
+    } catch {}
   }, [settings.googleDrive?.enabled]);
 
   const login = async () => {

@@ -1,4 +1,4 @@
-import type { Configuration, ZipWriter } from '@zip.js/zip.js';
+import type { Configuration, Entry, ZipWriter } from '@zip.js/zip.js';
 import { AppService } from '@/types/system';
 import { EXTS } from '@/libs/document';
 import { isTauriAppPlatform } from '@/services/environment';
@@ -407,7 +407,10 @@ export async function restoreFromBackupZip(
   }
 
   // Filter to file entries only (directories don't have getData)
-  const fileEntries = entries.filter((e) => !e.directory);
+  type ZipFileEntry = Entry & { getData: (writer: unknown) => Promise<Uint8Array> };
+  const fileEntries = entries.filter(
+    (e): e is ZipFileEntry => !e.directory && 'getData' in e && typeof e.getData === 'function'
+  );
 
   // Read backup library.json
   const libraryEntry = fileEntries.find((e) => e.filename === getLibraryFilename());

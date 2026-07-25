@@ -56,8 +56,7 @@ export function createTauriAdapter(getOptions: () => TauriAdapterOptions): ChatM
       const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user');
       const query =
         lastUserMessage?.content
-          ?.filter((c) => c.type === 'text')
-          .map((c) => c.text)
+          ?.flatMap((c) => (c.type === 'text' ? [c.text] : []))
           .join(' ') || '';
 
       aiLogger.chat.send(query.length, backend.kind === 'reedy');
@@ -65,8 +64,7 @@ export function createTauriAdapter(getOptions: () => TauriAdapterOptions): ChatM
       const aiMessages = messages.map((m) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content
-          .filter((c) => c.type === 'text')
-          .map((c) => c.text)
+          .flatMap((c) => (c.type === 'text' ? [c.text] : []))
           .join('\n'),
       }));
 
