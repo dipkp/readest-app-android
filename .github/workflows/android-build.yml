@@ -54,7 +54,28 @@ jobs:
         run: |
           rm -rf src-tauri/gen
           pnpm tauri android init
-          sed -i 's/defaultConfig {/defaultConfig {\n        missingDimensionStrategy("store", "foss")/' src-tauri/gen/android/app/build.gradle.kts
+          
+          echo "--- BEFORE ---"
+          cat src-tauri/gen/android/app/build.gradle.kts
+          
+          node -e "
+          const fs = require('fs');
+          const path = 'src-tauri/gen/android/app/build.gradle.kts';
+          let content = fs.readFileSync(path, 'utf8');
+          const injection = \`
+              flavorDimensions += \\\"store\\\"
+              productFlavors {
+                  create(\\\"foss\\\") {
+                      dimension = \\\"store\\\"
+                  }
+              }
+          \`;
+          content = content.replace('defaultConfig {', injection + '\\n    defaultConfig {\\n        missingDimensionStrategy(\\\"store\\\", \\\"foss\\\")');
+          fs.writeFileSync(path, content);
+          "
+          
+          echo "--- AFTER ---"
+          cat src-tauri/gen/android/app/build.gradle.kts
 
       - name: Build Tauri Android APK
         working-directory: apps/readest-app
