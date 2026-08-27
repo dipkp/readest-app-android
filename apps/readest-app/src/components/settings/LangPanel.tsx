@@ -42,7 +42,6 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
   const [uiLanguage, setUILanguage] = useState(viewSettings.uiLanguage);
   const [translationEnabled, setTranslationEnabled] = useState(viewSettings.translationEnabled);
   const [translationProvider, setTranslationProvider] = useState(viewSettings.translationProvider);
-  const [deeplApiKey, setDeeplApiKey] = useState(viewSettings.deeplApiKey || '');
   const [translateTargetLang, setTranslateTargetLang] = useState(viewSettings.translateTargetLang);
   const [showTranslateSource, setShowTranslateSource] = useState(viewSettings.showTranslateSource);
   const [ttsReadAloudText, setTtsReadAloudText] = useState(viewSettings.ttsReadAloudText);
@@ -87,7 +86,6 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
       uiLanguage: setUILanguage,
       translationEnabled: setTranslationEnabled,
       translationProvider: setTranslationProvider,
-      deeplApiKey: setDeeplApiKey,
       translateTargetLang: setTranslateTargetLang,
       showTranslateSource: setShowTranslateSource,
       ttsReadAloudText: setTtsReadAloudText,
@@ -363,25 +361,6 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
             options={getTranslationProviderOptions()}
           />
         </SettingsRow>
-        {translationProvider === 'deepl' && (
-          <SettingsRow
-            label={_('DeepL API Key')}
-            description={_('Your key is stored locally on this device.')}
-            data-setting-id='settings.language.deeplApiKey'
-          >
-            <input
-              type='password'
-              className='input input-bordered w-full font-mono text-sm shadow-inner'
-              value={deeplApiKey}
-              onChange={(e) => {
-                setDeeplApiKey(e.target.value);
-                saveViewSettings(envConfig, bookKey, 'deeplApiKey', e.target.value, false, false);
-              }}
-              placeholder='xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx'
-              aria-label={_('DeepL API Key')}
-            />
-          </SettingsRow>
-        )}
         <SettingsRow label={_('Translate To')} data-setting-id='settings.language.targetLanguage'>
           <SettingsSelect
             value={getCurrentTargetLangOption().value}

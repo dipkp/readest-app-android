@@ -44,6 +44,7 @@ describe('connectGoogleDrive', () => {
     expect(runOAuth).toHaveBeenCalledWith(buildGoogleOAuthConfig('cid', DRIVE_FILE_SCOPE), fetchFn);
     expect(persistence.save).toHaveBeenCalledWith(tokens);
     expect(res.accountLabel).toBe('a@b.com');
+    expect(res.accessToken).toBe('AT');
   });
 
   test('does NOT report connected when the token cannot be persisted', async () => {

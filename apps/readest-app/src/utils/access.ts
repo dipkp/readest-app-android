@@ -1,4 +1,6 @@
 import { UserPlan } from '@/types/quota';
+import { getFirebaseIdToken, getFirebaseUserId } from '@/services/firebase/firebaseAuth';
+import { readFirebaseConfig } from '@/services/firebase/firebaseConfig';
 
 export const getSubscriptionPlan = (_token: string): UserPlan => 'purchase';
 
@@ -52,13 +54,42 @@ export const getDailyTranslationPlanData = (_token: string) => {
 };
 
 export const getAccessToken = async (): Promise<string | null> => {
-  return null;
+  return getFirebaseIdToken();
 };
 
 export const getUserID = async (): Promise<string | null> => {
-  return null;
+  return getFirebaseUserId();
 };
 
-export const validateUserAndToken = async (_authHeader: string | null | undefined) => {
-  return { user: { id: 'dummy' }, token: 'dummy' };
+interface FirebaseAccountLookupResponse {
+  users?: Array<{ localId: string; email?: string; displayName?: string; photoUrl?: string }>;
+}
+
+export const validateUserAndToken = async (authHeader: string | null | undefined) => {
+  const token = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1] ?? null;
+  const apiKey = readFirebaseConfig()?.apiKey;
+  if (!token || typeof apiKey !== 'string') return { user: null, token: null };
+
+  const response = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken: token }),
+    },
+  );
+  if (!response.ok) return { user: null, token: null };
+
+  const account = ((await response.json()) as FirebaseAccountLookupResponse).users?.[0];
+  return account
+    ? {
+        user: {
+          id: account.localId,
+          email: account.email ?? null,
+          full_name: account.displayName ?? null,
+          avatar_url: account.photoUrl ?? null,
+        },
+        token,
+      }
+    : { user: null, token: null };
 };

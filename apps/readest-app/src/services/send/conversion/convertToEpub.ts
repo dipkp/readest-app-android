@@ -19,6 +19,7 @@ import type { ConvertibleMime, ConvertedBook, EpubChapter, EpubImage, TocEntry }
 /** Discriminated input — the caller resolves the kind from the MIME type. */
 export type ConvertInput =
   | { kind: 'docx'; bytes: ArrayBuffer; fileName?: string }
+  | { kind: 'xlsx'; bytes: ArrayBuffer; fileName?: string }
   | { kind: 'rtf'; bytes: ArrayBuffer; fileName?: string }
   | { kind: 'html'; bytes: ArrayBuffer; fileName?: string }
   | { kind: 'txt'; file: File }
@@ -79,6 +80,57 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+const spreadsheetValueToText = (value: unknown): string => {
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (typeof value !== 'object') return String(value);
+
+  if ('richText' in value && Array.isArray(value.richText)) {
+    return value.richText
+      .map((part) =>
+        typeof part === 'object' && part !== null && 'text' in part ? String(part.text) : '',
+      )
+      .join('');
+  }
+  if ('result' in value) return spreadsheetValueToText(value.result);
+  if ('text' in value) return String(value.text);
+  if ('hyperlink' in value) return String(value.hyperlink);
+  return '';
+};
+
+export const spreadsheetToHtml = async (bytes: ArrayBuffer): Promise<string> => {
+  const { Workbook } = await import('exceljs');
+  const workbook = new Workbook();
+  await workbook.xlsx.load(bytes);
+  if (workbook.worksheets.length === 0) {
+    throw new ConversionError('Spreadsheet has no worksheets', 'empty_input');
+  }
+
+  return workbook.worksheets
+    .map((worksheet) => {
+      const rows: string[] = [];
+      worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+        const cells: string[] = [];
+        const columnCount = Math.max(worksheet.columnCount, row.cellCount);
+        for (let columnNumber = 1; columnNumber <= columnCount; columnNumber++) {
+          const tag = rowNumber === 1 ? 'th' : 'td';
+          const text = spreadsheetValueToText(row.getCell(columnNumber).value);
+          cells.push(`<${tag}>${escapeHtml(text)}</${tag}>`);
+        }
+        rows.push(`<tr>${cells.join('')}</tr>`);
+      });
+
+      const table = rows.length
+        ? `<table><tbody>${rows.join('')}</tbody></table>`
+        : '<p>This worksheet is empty.</p>';
+      return `<section><h1>${escapeHtml(worksheet.name)}</h1>${table}</section>`;
+    })
+    .join('\n');
+};
 
 /**
  * Prepend the article title (as `<h1>`) and the byline (as `<p>`) to the
@@ -577,6 +629,19 @@ export async function convertToEpub(input: ConvertInput): Promise<ConvertedBook>
       }
       // Local files have no URL — hash their content for the identifier.
       return htmlToBook(html, baseName(input.fileName, 'Document'), '', html);
+    }
+    case 'xlsx': {
+      if (input.bytes.byteLength === 0) {
+        throw new ConversionError('Empty .xlsx file', 'empty_input');
+      }
+      let html: string;
+      try {
+        html = await spreadsheetToHtml(input.bytes);
+      } catch (err) {
+        if (err instanceof ConversionError) throw err;
+        throw new ConversionError(`Could not parse .xlsx: ${String(err)}`, 'parse_failed');
+      }
+      return htmlToBook(html, baseName(input.fileName, 'Spreadsheet'), '', html);
     }
     case 'html': {
       const raw = new TextDecoder('utf-8').decode(input.bytes);

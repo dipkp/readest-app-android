@@ -9,6 +9,7 @@ import { eventDispatcher } from '@/utils/event';
 import { WebDriveAuth } from '@/services/sync/providers/gdrive/WebDriveAuth';
 import type { FetchFn } from '@/services/sync/providers/gdrive/GoogleDriveProvider';
 import { saveWebDriveToken } from '@/services/sync/providers/gdrive/auth/webTokenStore';
+import { signInFirebaseWithGoogleAccessToken } from '@/services/firebase/firebaseAuth';
 import {
   consumeOAuthState,
   consumeReturnPath,
@@ -42,6 +43,7 @@ export default function GDriveCallback() {
         if (!tokens) throw new Error('no access token returned');
 
         saveWebDriveToken(tokens);
+        await signInFirebaseWithGoogleAccessToken(tokens.accessToken);
 
         const accountProfile = await new WebDriveAuth(
           globalThis.fetch.bind(globalThis) as unknown as FetchFn,
@@ -50,16 +52,6 @@ export default function GDriveCallback() {
           .catch(() => null);
 
         const accountLabel = accountProfile ? (accountProfile.email ?? accountProfile.name) : null;
-
-        if (accountProfile) {
-          const user = {
-            id: accountProfile.email || 'google_user',
-            email: accountProfile.email,
-            full_name: accountProfile.name,
-            avatar_url: accountProfile.picture,
-          };
-          localStorage.setItem('readest_google_user', JSON.stringify(user));
-        }
 
         // Switch Drive on and stamp the account label; every other provider
         // is left untouched (#5062). persistCloudProviderEnabled loads via

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   AssistantRuntimeProvider,
+  WebSpeechDictationAdapter,
   useLocalRuntime,
   useAssistantRuntime,
   type ThreadMessage,
@@ -209,7 +210,10 @@ const AIAssistantWithRuntime = ({
   onSourceClick?: (source: SourceItem) => void;
 }) => {
   const runtime = useLocalRuntime(adapter, {
-    adapters: historyAdapter ? { history: historyAdapter } : undefined,
+    adapters: {
+      history: historyAdapter,
+      dictation: new WebSpeechDictationAdapter(),
+    },
   });
 
   if (!runtime) return null;

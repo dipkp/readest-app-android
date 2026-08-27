@@ -34,6 +34,9 @@ figcaption { font-size: 0.9em; color: #666; text-align: center; }
 blockquote { margin: 1em 1.5em; color: #444; border-left: 3px solid #ccc; padding-left: 1em; }
 pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 pre { white-space: pre-wrap; background: #f5f5f5; padding: 0.6em 0.8em; border-radius: 4px; }
+table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+th, td { border: 1px solid #999; padding: 0.35em 0.5em; text-align: left; vertical-align: top; }
+th { font-weight: 600; background: #eee; }
 `;
 
 /**

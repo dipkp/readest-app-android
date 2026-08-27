@@ -13,6 +13,7 @@ import { DBBook, DBBookConfig, DBBookNote } from '@/types/records';
 import { Book, BookConfig, BookDataRecord, BookNote } from '@/types/book';
 import { navigateToLogin } from '@/utils/nav';
 import { useReaderStore } from '@/store/readerStore';
+import { useAuth } from '@/context/AuthContext';
 
 const transformsFromDB = {
   books: transformBookFromDB,
@@ -86,6 +87,24 @@ export function useSync(bookKey?: string) {
   const [syncedNotes, setSyncedNotes] = useState<BookNote[] | null>(null);
 
   const { syncClient } = useSyncContext();
+  const { user } = useAuth();
+
+  // Firestore listeners deliver cross-device changes immediately. The existing
+  // pull/push paths remain useful for explicit refresh and offline catch-up;
+  // snapshots feed the same merge pipeline so the reader UI needs no second
+  // synchronization model.
+  useEffect(() => {
+    if (!user || !lastSyncedAtInited) return;
+    const types: Array<'books' | 'configs' | 'notes'> = bookKey
+      ? ['configs', 'notes']
+      : ['books'];
+    const unsubscribers = types.map((type) =>
+      syncClient.subscribeToChanges(type, (incoming) => {
+        setSyncResult((current) => ({ ...current, [type]: incoming[type] }));
+      }, bookKey),
+    );
+    return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
+  }, [bookKey, lastSyncedAtInited, syncClient, user]);
 
   useEffect(() => {
     if (!bookKey) return;

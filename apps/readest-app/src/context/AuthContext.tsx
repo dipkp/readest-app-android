@@ -2,13 +2,24 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
-  useMemo,
-  ReactNode,
-  useState,
   useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
 } from 'react';
-import { runGoogleDriveConnect, runGoogleDriveDisconnect } from '@/services/sync/providers/gdrive/googleDriveConnect';
+import type { User as FirebaseUser } from 'firebase/auth';
+import {
+  getFirebaseIdToken,
+  observeFirebaseAuth,
+  signInFirebaseWithGoogleAccessToken,
+  signOutFirebase,
+} from '@/services/firebase/firebaseAuth';
+import {
+  runGoogleDriveConnect,
+  runGoogleDriveDisconnect,
+} from '@/services/sync/providers/gdrive/googleDriveConnect';
 import { useSettingsStore } from '@/store/settingsStore';
 
 export interface User {
@@ -25,79 +36,69 @@ interface AuthContextType {
   user: User | null;
   login: () => Promise<void>;
   logout: () => Promise<void>;
-  refresh: () => void;
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const mapFirebaseUser = (user: FirebaseUser): User => ({
+  id: user.uid,
+  email: user.email,
+  full_name: user.displayName,
+  avatar_url: user.photoURL,
+});
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const { setSettings, settings } = useSettingsStore();
+  const [token, setToken] = useState<string | null>(null);
 
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('readest_google_user');
-      if (stored && settings.googleDrive?.enabled) {
-        setUser(JSON.parse(stored));
-      } else if (!settings.googleDrive?.enabled) {
-        localStorage.removeItem('readest_google_user');
-        setUser(null);
-      }
-    } catch {}
-  }, [settings.googleDrive?.enabled]);
+  useEffect(
+    () =>
+      observeFirebaseAuth((firebaseUser) => {
+        setUser(firebaseUser ? mapFirebaseUser(firebaseUser) : null);
+        void (async () => setToken(firebaseUser ? await firebaseUser.getIdToken() : null))();
+      }),
+    [],
+  );
 
-  const login = async () => {
-    try {
-      const result = await runGoogleDriveConnect();
-      if (result?.accountProfile) {
-        const newUser: User = {
-          id: result.accountProfile.email || 'google_user',
-          email: result.accountProfile.email,
-          full_name: result.accountProfile.name,
-          avatar_url: result.accountProfile.picture,
-        };
-        setUser(newUser);
-        localStorage.setItem('readest_google_user', JSON.stringify(newUser));
-        
-        setSettings({
-          ...settings,
-          googleDrive: {
-            ...settings.googleDrive,
-            enabled: true,
-            syncBooks: true,
-            accountLabel: result.accountLabel ?? undefined,
-          }
-        });
-      }
-    } catch (e) {
-      console.error('Google Sign In failed', e);
-      throw e;
-    }
-  };
+  const login = useCallback(async () => {
+    const result = await runGoogleDriveConnect();
+    await signInFirebaseWithGoogleAccessToken(result.accessToken);
 
-  const logout = async () => {
-    try {
-      await runGoogleDriveDisconnect();
-    } catch(e) {
-      console.error('Google Sign Out failed', e);
-    }
+    const { settings, setSettings } = useSettingsStore.getState();
+    setSettings({
+      ...settings,
+      googleDrive: {
+        ...settings.googleDrive,
+        enabled: true,
+        syncBooks: true,
+        accountLabel: result.accountLabel ?? undefined,
+      },
+    });
+  }, []);
+
+  const logout = useCallback(async () => {
+    await Promise.allSettled([signOutFirebase(), runGoogleDriveDisconnect()]);
     setUser(null);
-    localStorage.removeItem('readest_google_user');
-    
+    setToken(null);
+
+    const { settings, setSettings } = useSettingsStore.getState();
     setSettings({
       ...settings,
       googleDrive: {
         ...settings.googleDrive,
         enabled: false,
-      }
+      },
     });
-  };
+  }, []);
 
-  const refresh = () => {};
+  const refresh = useCallback(async () => {
+    setToken(await getFirebaseIdToken(true));
+  }, []);
 
   const value = useMemo(
-    () => ({ token: null, user, login, logout, refresh }),
-    [user]
+    () => ({ token, user, login, logout, refresh }),
+    [token, user, login, logout, refresh],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

@@ -1,19 +1,10 @@
 import type { SystemSettings } from '@/types/settings';
 import type { UserPlan } from '@/types/quota';
-import { isCloudSyncAllowed } from '@/utils/access';
 import type { FileSyncBackendKind } from '@/services/sync/file/providerRegistry';
 
 /**
- * The cloud sync provider kind for library data (book files, book rows,
- * progress, notes). 'readest' is the native Readest Cloud; the others are
- * the third-party file-sync backends.
- *
- * Providers are INDEPENDENT (#5062): any subset may sync the library at once,
- * including none. Readest Cloud's flag has a derived default so an absent value
- * reproduces the old exclusive behaviour; every third-party backend is a plain
- * per-device `enabled` flag. Account-level data (settings replicas, reading
- * stats, dictionaries/fonts, translations) always syncs via Readest Cloud while
- * signed in, regardless of this selection.
+ * Compatibility union for persisted settings. This fork exposes Google Drive
+ * only; Readest Cloud and the non-Google backends are always inactive.
  */
 export type CloudSyncProviderKind = 'readest' | FileSyncBackendKind;
 
@@ -41,12 +32,7 @@ export const cloudProviderDisplayName = (kind: CloudSyncProviderKind): string =>
 export const getEnabledFileSyncBackends = (
   settings: SystemSettings | null | undefined,
 ): FileSyncBackendKind[] => {
-  const enabled: FileSyncBackendKind[] = [];
-  if (settings?.webdav?.enabled) enabled.push('webdav');
-  if (settings?.googleDrive?.enabled) enabled.push('gdrive');
-  if (settings?.s3?.enabled) enabled.push('s3');
-  if (settings?.onedrive?.enabled) enabled.push('onedrive');
-  return enabled;
+  return settings?.googleDrive?.enabled ? ['gdrive'] : [];
 };
 
 /** Any third-party file-sync backend switched on. */
@@ -78,13 +64,8 @@ export const cloudProvidersDisplayName = (kinds: CloudSyncProviderKind[]): strin
   kinds.map(cloudProviderDisplayName).join(', ');
 
 /**
- * `isCloudSyncAllowed` needs the UserPlan, which comes from the async
- * auth JWT — non-React modules (transferManager, syncCategories) cannot
- * resolve it synchronously. The plan-resolution flow (auth / quota
- * refresh) writes the latest plan here; gate checks read it back.
- * Defaults to 'free', the most restrictive plan, so a gate evaluated
- * before the first auth resolution can only be too cautious, never too
- * permissive.
+ * Kept for compatibility with callers that still publish a plan refresh. The
+ * Google-only fork never uses this value to gate sync.
  */
 let cachedUserPlan: UserPlan = 'free';
 
@@ -97,26 +78,23 @@ export const getCachedUserPlan = (): UserPlan => cachedUserPlan;
 export interface CloudSyncGate {
   /** Readest Cloud syncs the library channels (rows, progress, notes, files). */
   readest: boolean;
-  /** Third-party backends the user switched on, in the fixed webdav/gdrive/s3/onedrive order. */
+  /** Google Drive when it is switched on. */
   backends: FileSyncBackendKind[];
   /**
-   * True when third-party backends are switched on but the plan does not allow
-   * cloud sync. Paused means paused: a paused backend does not sync. Readest
-   * Cloud is unaffected — if it is on it keeps running, because the user asked
-   * for it, not as a silent fallback (#4959).
+   * Always false: Google Drive sync is free in this fork.
    */
   paused: boolean;
 }
 
 export const resolveCloudSyncGate = (
   settings: SystemSettings | null | undefined,
-  plan: UserPlan = cachedUserPlan,
+  _plan: UserPlan = cachedUserPlan,
 ): CloudSyncGate => {
   const backends = getEnabledFileSyncBackends(settings);
   return {
     readest: isReadestCloudEnabled(settings),
     backends,
-    paused: backends.length > 0 && !isCloudSyncAllowed(plan),
+    paused: false,
   };
 };
 
@@ -126,63 +104,23 @@ export const getActiveFileSyncBackends = (
   plan?: UserPlan,
 ): FileSyncBackendKind[] => {
   const gate = resolveCloudSyncGate(settings, plan);
-  if (gate.paused) {
-    return gate.backends.filter((b) => b === 'gdrive');
-  }
   return gate.backends;
 };
 
 /**
- * One-time upgrade migration helper (appService migrate20260706): users
- * who already had WebDAV/Drive enabled before provider selection shipped
- * become "third-party selected" on upgrade, which gates native Readest
- * Cloud uploads off — with syncBooks at its old `false` default their
- * books would back up nowhere. Flip syncBooks on for every enabled backend.
+ * Upgrade helper: ensure an already-enabled Google Drive account also syncs
+ * book files.
  * Mutates `settings` in place (the migration runner saves the same
  * snapshot afterwards) and returns whether anything changed.
  */
 export const applySyncBooksAutoEnable = (settings: SystemSettings): boolean => {
-  let changed = false;
-  for (const kind of getEnabledFileSyncBackends(settings)) {
-    // A switch (rather than a generically-keyed write) keeps each branch's
-    // settings slice type intact; `settings[key] = { ...slice, syncBooks }`
-    // does not typecheck when `key` is a union of literal keys.
-    switch (kind) {
-      case 'webdav':
-        if (settings.webdav && !settings.webdav.syncBooks) {
-          settings.webdav = { ...settings.webdav, syncBooks: true };
-          changed = true;
-        }
-        break;
-      case 'gdrive':
-        if (settings.googleDrive && !settings.googleDrive.syncBooks) {
-          settings.googleDrive = { ...settings.googleDrive, syncBooks: true };
-          changed = true;
-        }
-        break;
-      case 's3':
-        if (settings.s3 && !settings.s3.syncBooks) {
-          settings.s3 = { ...settings.s3, syncBooks: true };
-          changed = true;
-        }
-        break;
-      case 'onedrive':
-        if (settings.onedrive && !settings.onedrive.syncBooks) {
-          settings.onedrive = { ...settings.onedrive, syncBooks: true };
-          changed = true;
-        }
-        break;
-    }
-  }
-  return changed;
+  if (!settings.googleDrive?.enabled || settings.googleDrive.syncBooks) return false;
+  settings.googleDrive = { ...settings.googleDrive, syncBooks: true };
+  return true;
 };
 
 /**
- * Whether Readest Cloud storage may be written to (book file uploads and the
- * native book/progress/note rows). Now simply "is Readest Cloud switched on" —
- * it no longer means "and nothing else is". A user can mirror to Drive AND keep
- * Readest Cloud; whether book *files* also go to Readest is still governed
- * separately by the Manage Sync "book" toggle and the transfer queue.
+ * Original hosted storage is never writable in the Google-only fork.
  */
 export const isReadestCloudStorageActive = (
   _settings: SystemSettings | null | undefined,

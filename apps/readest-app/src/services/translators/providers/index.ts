@@ -1,8 +1,5 @@
 import { TranslationProvider } from '../types';
-import { deeplProvider } from './deepl';
-import { azureProvider } from './azure';
 import { googleProvider } from './google';
-import { yandexProvider } from './yandex';
 
 function createTranslator<T extends string>(
   name: T,
@@ -16,24 +13,20 @@ function createTranslator<T extends string>(
   return implementation as TranslationProvider & { name: T };
 }
 
-const deeplTranslator = createTranslator('deepl', deeplProvider);
-const azureTranslator = createTranslator('azure', azureProvider);
 const googleTranslator = createTranslator('google', googleProvider);
-const yandexTranslator = createTranslator('yandex', yandexProvider);
 
-const availableTranslators = [
-  deeplTranslator,
-  azureTranslator,
-  googleTranslator,
-  yandexTranslator,
-  // Add more translators here
-];
+const availableTranslators = [googleTranslator];
 
-export type TranslatorName = (typeof availableTranslators)[number]['name'];
+// Keep legacy names in the persisted-settings type so an upgraded profile can
+// be read and cleanly fall back to Google, even though those providers are no
+// longer exposed by this fork.
+export type TranslatorName = 'google' | 'deepl' | 'azure' | 'yandex';
 
-export const getTranslator = (name: TranslatorName): TranslationProvider | undefined => {
-  return availableTranslators.find((translator) => translator.name === name);
-};
+export function getTranslator(name: TranslatorName): TranslationProvider | undefined {
+  return (availableTranslators as readonly TranslationProvider[]).find(
+    (translator) => translator.name === name,
+  );
+}
 
 export const getTranslators = (): TranslationProvider[] => {
   return availableTranslators;

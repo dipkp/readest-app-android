@@ -10,6 +10,7 @@ import {
   FIXED_LAYOUT_FORMATS,
   ImportBookOptions,
 } from '@/types/book';
+import { convertImportableDocument, isConvertibleDocumentName } from './importConversion';
 import {
   getDir,
   getLocalBookFilename,
@@ -384,7 +385,10 @@ export async function importBook(
           fileobj = file;
           filename = file.name;
         }
-        if (/\.txt$/i.test(filename)) {
+        const isConvertedDocument = isConvertibleDocumentName(filename);
+        if (isConvertedDocument) {
+          fileobj = await convertImportableDocument(fileobj);
+        } else if (/\.txt$/i.test(filename)) {
           const txt2epub = new TxtToEpubConverter();
           ({ file: fileobj } = await txt2epub.convert({ file: fileobj }));
         }
@@ -410,7 +414,7 @@ export async function importBook(
         // tests.
         let nativeBookDoc: BookDoc | undefined;
         let nativeFormat: BookFormat | undefined;
-        if (typeof file === 'string' && !/\.txt$/i.test(filename)) {
+        if (typeof file === 'string' && !/\.txt$/i.test(filename) && !isConvertedDocument) {
           const nativeEpub = await tryNativeParseEpub(file);
           if (nativeEpub) {
             nativeBookDoc = nativeEpub.bookDoc;

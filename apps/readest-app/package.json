@@ -164,6 +164,7 @@
     "cors": "^2.8.5",
     "dayjs": "^1.11.13",
     "dompurify": "^3.4.0",
+    "exceljs": "4.4.0",
     "fflate": "^0.8.2",
     "foliate-js": "workspace:*",
     "franc-min": "^6.2.0",

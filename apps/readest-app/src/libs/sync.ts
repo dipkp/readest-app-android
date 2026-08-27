@@ -1,9 +1,24 @@
 import { Book, BookConfig, BookNote, BookDataRecord } from '@/types/book';
-import { getAPIBaseUrl } from '@/services/environment';
-import { getAccessToken } from '@/utils/access';
-import { fetchWithTimeout } from '@/utils/fetch';
-
-const SYNC_API_ENDPOINT = getAPIBaseUrl() + '/sync';
+import {
+  collection,
+  doc,
+  limit as firestoreLimit,
+  onSnapshot,
+  orderBy,
+  query,
+  runTransaction,
+  where,
+  type DocumentData,
+  type QueryConstraint,
+  type Unsubscribe,
+} from 'firebase/firestore';
+import { getFirebaseUserId } from '@/services/firebase/firebaseAuth';
+import { requireFirebaseServices } from '@/services/firebase/firebaseClient';
+import {
+  transformBookConfigToDB,
+  transformBookNoteToDB,
+  transformBookToDB,
+} from '@/utils/transform';
 
 export type SyncType = 'books' | 'configs' | 'notes' | 'stats';
 export type SyncOp = 'push' | 'pull' | 'both';
@@ -53,6 +68,47 @@ export interface SyncData {
   statPages?: StatPageRecord[];
 }
 
+const emptySyncResult = (): SyncResult => ({ books: null, notes: null, configs: null });
+
+type FirebaseSyncCollection = Exclude<SyncType, 'stats'> | 'statBooks' | 'statPages';
+
+const collectionName = (type: FirebaseSyncCollection): string =>
+  type === 'statBooks' ? 'stat-books' : type === 'statPages' ? 'stat-pages' : type;
+
+const cleanFirestoreData = (value: DocumentData): DocumentData =>
+  Object.fromEntries(Object.entries(value).filter(([, field]) => field !== undefined));
+
+const recordId = (type: FirebaseSyncCollection, record: DocumentData): string => {
+  if (type === 'books' || type === 'configs') return String(record['book_hash']);
+  if (type === 'notes') return `${String(record['book_hash'])}:${String(record['id'])}`;
+  if (type === 'statBooks') return String(record['book_hash']);
+  return `${String(record['book_hash'])}:${String(record['page'])}:${String(record['start_time'])}`;
+};
+
+const updatedAt = (record: DocumentData): string =>
+  String(record['updated_at'] ?? new Date().toISOString());
+
+const toDatabaseRecords = (
+  payload: SyncData,
+  userId: string,
+): Partial<Record<FirebaseSyncCollection, DocumentData[]>> => ({
+  books: payload.books?.map((book) => transformBookToDB(book, userId)),
+  configs: payload.configs?.map((config) => transformBookConfigToDB(config, userId)),
+  notes: payload.notes?.map((note) => transformBookNoteToDB(note, userId)),
+  statBooks: payload.statBooks?.map((record) => ({
+    ...record,
+    user_id: userId,
+    updated_at: record.updated_at ?? new Date().toISOString(),
+    updated_at_ms: record.updated_at_ms ?? Date.now(),
+  })),
+  statPages: payload.statPages?.map((record) => ({
+    ...record,
+    user_id: userId,
+    updated_at: record.updated_at ?? new Date().toISOString(),
+    updated_at_ms: record.updated_at_ms ?? Date.now(),
+  })),
+});
+
 export class SyncClient {
   /**
    * Pull incremental changes since a given timestamp (in ms).
@@ -65,27 +121,49 @@ export class SyncClient {
     metaHash?: string,
     limit?: number,
   ): Promise<SyncResult> {
-    const token = await getAccessToken();
-    if (!token) throw new Error('Not authenticated');
+    const userId = getFirebaseUserId();
+    if (!userId) throw new Error('Not authenticated');
+    if (!type) return emptySyncResult();
 
-    const limitParam = limit && limit > 0 ? `&limit=${encodeURIComponent(limit)}` : '';
-    const url = `${SYNC_API_ENDPOINT}?since=${encodeURIComponent(since)}&type=${type ?? ''}&book=${book ?? ''}&meta_hash=${metaHash ?? ''}${limitParam}`;
-    const res = await fetchWithTimeout(
-      url,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
-      15000,
-    );
+    const { firestore } = requireFirebaseServices();
+    const constraints: QueryConstraint[] = [
+      where('updated_at', '>=', new Date(Math.max(0, since)).toISOString()),
+      orderBy('updated_at', 'asc'),
+    ];
+    if (limit && limit > 0) constraints.push(firestoreLimit(limit));
 
-    if (!res.ok) {
-      const error = await res.json();
-      throw new Error(`Failed to pull changes: ${error.error || res.statusText}`);
+    const readCollection = async (collectionType: FirebaseSyncCollection) => {
+      const { getDocs } = await import('firebase/firestore');
+      const snapshot = await getDocs(
+        query(
+          collection(firestore, `users/${userId}/${collectionName(collectionType)}`),
+          ...constraints,
+        ),
+      );
+      return snapshot.docs.map((item) => item.data());
+    };
+
+    if (type === 'stats') {
+      const [statBooks, statPages] = await Promise.all([
+        readCollection('statBooks'),
+        readCollection('statPages'),
+      ]);
+      return { ...emptySyncResult(), statBooks, statPages } as SyncResult;
     }
 
-    return res.json();
+    let records = await readCollection(type);
+    if (book || metaHash) {
+      records = records.filter(
+        (record) =>
+          (!book || record['book_hash'] === book) ||
+          (!!metaHash && record['meta_hash'] === metaHash),
+      );
+    }
+
+    return {
+      ...emptySyncResult(),
+      [type]: records,
+    } as SyncResult;
   }
 
   /**
@@ -93,27 +171,55 @@ export class SyncClient {
    * Uses last-writer-wins logic as implemented on the server side.
    */
   async pushChanges(payload: SyncData): Promise<SyncResult> {
-    const token = await getAccessToken();
-    if (!token) throw new Error('Not authenticated');
+    const userId = getFirebaseUserId();
+    if (!userId) throw new Error('Not authenticated');
+    const { firestore } = requireFirebaseServices();
+    const recordsByType = toDatabaseRecords(payload, userId);
+    const result = emptySyncResult();
 
-    const res = await fetchWithTimeout(
-      SYNC_API_ENDPOINT,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      },
-      15000,
-    );
-
-    if (!res.ok) {
-      const error = await res.json();
-      throw new Error(`Failed to push changes: ${error.error || res.statusText}`);
+    for (const [rawType, records] of Object.entries(recordsByType)) {
+      const type = rawType as FirebaseSyncCollection;
+      if (!records?.length) continue;
+      for (const rawRecord of records) {
+        const record = cleanFirestoreData(rawRecord);
+        const target = doc(
+          firestore,
+          `users/${userId}/${collectionName(type)}/${recordId(type, record)}`,
+        );
+        await runTransaction(firestore, async (transaction) => {
+          const existing = await transaction.get(target);
+          if (existing.exists() && updatedAt(existing.data()) > updatedAt(record)) return;
+          transaction.set(target, record, { merge: true });
+        });
+      }
+      if (type === 'books' || type === 'configs' || type === 'notes') {
+        if (type === 'books') result.books = records as BookRecord[];
+        if (type === 'configs') result.configs = records as BookConfigRecord[];
+        if (type === 'notes') result.notes = records as BookNoteRecord[];
+      }
     }
+    return result;
+  }
 
-    return res.json();
+  subscribeToChanges(
+    type: 'books' | 'configs' | 'notes',
+    listener: (result: SyncResult) => void,
+    book?: string,
+    metaHash?: string,
+  ): Unsubscribe {
+    const userId = getFirebaseUserId();
+    if (!userId) return () => {};
+    const { firestore } = requireFirebaseServices();
+    return onSnapshot(collection(firestore, `users/${userId}/${type}`), (snapshot) => {
+      let records = snapshot.docs.map((item) => item.data());
+      if (book || metaHash) {
+        records = records.filter(
+          (record) =>
+            (!book || record['book_hash'] === book) ||
+            (!!metaHash && record['meta_hash'] === metaHash),
+        );
+      }
+      listener({ ...emptySyncResult(), [type]: records } as SyncResult);
+    });
   }
 }

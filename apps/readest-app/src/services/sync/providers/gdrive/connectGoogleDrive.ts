@@ -11,8 +11,13 @@ import type { TokenPersistence } from './driveTokenStore';
 import type { OAuthClientConfig } from '@/services/sync/providers/oauth/oauthFlow';
 import type { TokenSet } from '@/services/sync/providers/oauth/tokenEndpoint';
 
-/** The Drive scope: the app sees only the files it created (a private namespace). */
-export const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+/**
+ * Google identity plus Drive's private app-file scope. The identity scopes let
+ * the same consent complete Firebase Auth without asking the user to sign in a
+ * second time; Drive still sees only files created by this app.
+ */
+export const DRIVE_FILE_SCOPE =
+  'openid email profile https://www.googleapis.com/auth/drive.file';
 
 export interface ConnectGoogleDriveDeps {
   /** The env-baked official OAuth client id. */
@@ -28,6 +33,8 @@ export interface ConnectGoogleDriveDeps {
 export interface ConnectGoogleDriveResult {
   accountLabel: string | null;
   accountProfile: GoogleAccountProfile | null;
+  /** Short-lived token used immediately to exchange for a Firebase session. */
+  accessToken: string;
 }
 
 /**
@@ -64,7 +71,7 @@ export const connectGoogleDrive = async (
   } catch (e) {
     console.warn('[gdrive] account profile fetch failed', e);
   }
-  return { accountLabel, accountProfile };
+  return { accountLabel, accountProfile, accessToken: tokens.accessToken };
 };
 
 /** Forget the stored Drive credentials (the settings flag is cleared by the caller). */

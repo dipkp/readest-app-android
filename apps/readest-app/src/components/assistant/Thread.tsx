@@ -21,6 +21,7 @@ import {
   ChevronRightIcon,
   CopyIcon,
   PencilIcon,
+  MicIcon,
   RefreshCwIcon,
   SquareIcon,
   Trash2Icon,
@@ -264,6 +265,22 @@ const Composer: FC<ComposerProps> = ({ onClear, onResetIndex }) => {
             className='text-base-content placeholder:text-base-content/40 my-1 h-5 max-h-[200px] min-w-0 flex-1 resize-none bg-transparent text-sm leading-5 outline-none'
           />
 
+          <ComposerPrimitive.Dictate
+            className='text-base-content hover:bg-base-300 mb-0.5 flex size-7 shrink-0 items-center justify-center rounded-full transition-colors'
+            aria-label='Start voice input'
+            title='Voice input'
+          >
+            <MicIcon className='size-3.5' />
+          </ComposerPrimitive.Dictate>
+
+          <ComposerPrimitive.StopDictation
+            className='text-error hover:bg-error/10 mb-0.5 flex size-7 shrink-0 items-center justify-center rounded-full transition-colors'
+            aria-label='Stop voice input'
+            title='Stop voice input'
+          >
+            <SquareIcon className='size-3' fill='currentColor' />
+          </ComposerPrimitive.StopDictation>
+
           <div className='bg-base-content text-base-100 relative mb-0.5 size-7 shrink-0 rounded-full'>
             <ComposerPrimitive.Send className='absolute inset-0 flex items-center justify-center transition-all duration-300 ease-out group-data-[empty=true]/composer:scale-0 group-data-[running=true]/composer:scale-0 group-data-[empty=true]/composer:opacity-0 group-data-[running=true]/composer:opacity-0'>
               <ArrowUpIcon className='size-3.5' />
@@ -279,6 +296,7 @@ const Composer: FC<ComposerProps> = ({ onClear, onResetIndex }) => {
             </div>
           </div>
         </div>
+        <ComposerPrimitive.DictationTranscript className='text-base-content/60 block px-3 pb-2 text-xs' />
       </div>
     </ComposerPrimitive.Root>
   );

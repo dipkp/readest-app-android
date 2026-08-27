@@ -332,32 +332,18 @@ describe('azureProvider', () => {
 // ---------------------------------------------------------------------------
 // Provider registry — disabled providers stay visible but unselectable
 // ---------------------------------------------------------------------------
-describe('provider registry disabled handling', () => {
-  // No `vi.resetModules()` here — these tests only inspect static provider
-  // metadata, so resolving the registry once is enough. Resetting between
-  // each test would re-evaluate the full import chain and churn module
-  // state for no benefit.
-
-  it('keeps yandex in getTranslators() so the UI can render it', async () => {
+describe('Google-only provider registry', () => {
+  it('exposes only Google Translate', async () => {
     const { getTranslators } = await import('@/services/translators/providers');
     const names = getTranslators().map((t) => t.name);
-    expect(names).toContain('yandex');
+    expect(names).toEqual(['google']);
   });
 
-  it('exposes yandex as disabled so callers can grey it out', async () => {
+  it('does not resolve removed provider names from stale settings', async () => {
     const { getTranslator } = await import('@/services/translators/providers');
-    const yandex = getTranslator('yandex');
-    expect(yandex).toBeDefined();
-    expect(yandex!.disabled).toBe(true);
-  });
-
-  it('isTranslatorAvailable returns false for disabled providers', async () => {
-    const { getTranslator, isTranslatorAvailable } = await import(
-      '@/services/translators/providers'
-    );
-    const yandex = getTranslator('yandex')!;
-    expect(isTranslatorAvailable(yandex, true)).toBe(false);
-    expect(isTranslatorAvailable(yandex, false)).toBe(false);
+    expect(getTranslator('deepl')).toBeUndefined();
+    expect(getTranslator('azure')).toBeUndefined();
+    expect(getTranslator('yandex')).toBeUndefined();
   });
 
   it('isTranslatorAvailable returns false for authRequired without token', async () => {
