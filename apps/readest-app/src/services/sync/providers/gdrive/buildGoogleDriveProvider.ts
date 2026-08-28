@@ -18,8 +18,8 @@ import { WebDriveAuth } from './WebDriveAuth';
 import { createDriveTokenPersistence } from './driveTokenStore';
 
 /**
- * The official Readest Google OAuth client id (iOS application type, no secret),
- * baked into the build so Drive sync works for every user out of the box. The
+ * This fork's Google OAuth client id (iOS application type, no secret), baked
+ * into the build so Drive sync works for every user out of the box. The
  * only runtime client — there is no BYO, because the redirect scheme is derived
  * from this id and registered in the platform manifests at build time (the
  * `com.googleusercontent.apps.<id>` schemes in `tauri.conf.json`). A forker
@@ -28,13 +28,13 @@ import { createDriveTokenPersistence } from './driveTokenStore';
  * inside the app binary.
  */
 const OFFICIAL_GOOGLE_CLIENT_ID =
-  '209390247301-ctpmep68ppfa56r1b8tr35e4qi4p60kq.apps.googleusercontent.com';
+  '1094908414388-b985r5sis170cusu1a0njcd85mij7mgh.apps.googleusercontent.com';
 
 export const getGoogleClientId = (): string | undefined =>
   process.env['NEXT_PUBLIC_GOOGLE_CLIENT_ID'] || OFFICIAL_GOOGLE_CLIENT_ID;
 
 /**
- * The official Readest **Web-type** Google OAuth client id used by the browser
+ * This fork's **Web-type** Google OAuth client id used by the browser
  * GIS flow (its authorized JavaScript origins are `web.readest.com` + the
  * localhost dev origin). Separate from the iOS-type
  * {@link OFFICIAL_GOOGLE_CLIENT_ID}, which can't drive a browser token client.
@@ -43,7 +43,7 @@ export const getGoogleClientId = (): string | undefined =>
  * on that client.
  */
 const OFFICIAL_GOOGLE_WEB_CLIENT_ID =
-  '209390247301-585tc3dohg4c02588uvah5d32hg6dneq.apps.googleusercontent.com';
+  '1094908414388-hh19e9op5qrg90p830o6j61vm46s0kf0.apps.googleusercontent.com';
 
 export const getGoogleWebClientId = (): string | undefined =>
   process.env['NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID'] || OFFICIAL_GOOGLE_WEB_CLIENT_ID;

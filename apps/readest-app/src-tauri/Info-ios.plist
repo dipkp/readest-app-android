@@ -62,7 +62,7 @@
         <string>com.googleusercontent.apps.gdrive-oauth</string>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>com.googleusercontent.apps.209390247301-ctpmep68ppfa56r1b8tr35e4qi4p60kq</string>
+          <string>com.googleusercontent.apps.1094908414388-b985r5sis170cusu1a0njcd85mij7mgh</string>
         </array>
       </dict>
       <!-- OneDrive OAuth redirect. The ASWebAuthenticationSession matches on
