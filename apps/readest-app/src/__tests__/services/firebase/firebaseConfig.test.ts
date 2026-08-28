@@ -5,7 +5,6 @@ const completeConfig = {
   NEXT_PUBLIC_FIREBASE_API_KEY: 'api-key',
   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: 'reader.firebaseapp.com',
   NEXT_PUBLIC_FIREBASE_PROJECT_ID: 'reader',
-  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: 'reader.firebasestorage.app',
   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '123',
   NEXT_PUBLIC_FIREBASE_APP_ID: '1:123:web:abc',
 };
@@ -16,7 +15,6 @@ describe('readFirebaseConfig', () => {
       apiKey: 'api-key',
       authDomain: 'reader.firebaseapp.com',
       projectId: 'reader',
-      storageBucket: 'reader.firebasestorage.app',
       messagingSenderId: '123',
       appId: '1:123:web:abc',
     });
